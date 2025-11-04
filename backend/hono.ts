@@ -9,16 +9,15 @@ const app = new Hono();
 app.use("*", cors());
 
 app.use(
-  "/trpc/*",
+  "/api/trpc/*",
   trpcServer({
-    endpoint: "/api/trpc",
     router: appRouter,
     createContext,
   })
 );
 
 app.get("/", (c) => {
-  return c.json({ status: "ok", message: "API is running" });
+  return c.text("سرور انبارداری در حال اجرا است\nبرای استفاده از API از اپلیکیشن موبایل استفاده کنید.");
 });
 
 app.get("/health", (c) => {
