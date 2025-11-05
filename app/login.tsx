@@ -27,6 +27,7 @@ export default function LoginScreen() {
   const registerMutation = trpc.auth.register.useMutation();
 
   const handleSubmit = async () => {
+    console.log('[Login] Submit clicked', { isRegister, username });
     if (!username.trim() || !password.trim()) {
       Alert.alert('خطا', 'لطفا نام کاربری و رمز عبور را وارد کنید');
       return;
@@ -34,15 +35,22 @@ export default function LoginScreen() {
 
     try {
       if (isRegister) {
+        console.log('[Login] Attempting register...');
         const result = await registerMutation.mutateAsync({ username, password });
+        console.log('[Login] Register successful:', result);
         await login(result.userId, result.username, result.userId);
+        console.log('[Login] Auth state updated');
         router.replace('/home');
       } else {
+        console.log('[Login] Attempting login...');
         const result = await loginMutation.mutateAsync({ username, password });
+        console.log('[Login] Login successful:', result);
         await login(result.userId, result.username, result.token);
+        console.log('[Login] Auth state updated');
         router.replace('/home');
       }
     } catch (error: unknown) {
+      console.error('[Login] Error:', error);
       const message = error instanceof Error ? error.message : 'خطایی رخ داد';
       Alert.alert('خطا', message);
     }

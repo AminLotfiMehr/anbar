@@ -1,7 +1,8 @@
 import { Database, User, Product, Transaction } from '../types/database';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { promises as fs } from 'fs';
+import { resolve } from 'path';
 
-const DB_KEY = 'inventory_database';
+const DB_FILE = resolve(process.cwd(), 'database.json');
 
 let database: Database = {
   users: [],
@@ -15,32 +16,33 @@ async function loadDatabase() {
   if (isInitialized) return;
   
   try {
-    const stored = await AsyncStorage.getItem(DB_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      database = {
-        users: parsed.users || [],
-        products: parsed.products || [],
-        transactions: parsed.transactions || [],
-      };
-      console.log('[DB] Loaded database:', {
-        users: database.users.length,
-        products: database.products.length,
-        transactions: database.transactions.length
-      });
-    } else {
-      console.log('[DB] No stored database found, starting fresh');
-    }
+    const data = await fs.readFile(DB_FILE, 'utf-8');
+    const parsed = JSON.parse(data);
+    database = {
+      users: parsed.users || [],
+      products: parsed.products || [],
+      transactions: parsed.transactions || [],
+    };
+    console.log('[DB] Loaded database:', {
+      users: database.users.length,
+      products: database.products.length,
+      transactions: database.transactions.length
+    });
   } catch (error) {
-    console.error('[DB] Error loading database:', error);
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      console.log('[DB] No stored database found, starting fresh');
+      await saveDatabase();
+    } else {
+      console.error('[DB] Error loading database:', error);
+    }
   }
   isInitialized = true;
 }
 
 async function saveDatabase() {
   try {
-    await AsyncStorage.setItem(DB_KEY, JSON.stringify(database));
-    console.log('[DB] Database saved');
+    await fs.writeFile(DB_FILE, JSON.stringify(database, null, 2), 'utf-8');
+    console.log('[DB] Database saved to', DB_FILE);
   } catch (error) {
     console.error('[DB] Error saving database:', error);
   }
