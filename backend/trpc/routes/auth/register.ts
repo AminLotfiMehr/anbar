@@ -21,6 +21,7 @@ export const registerProcedure = publicProcedure
       id: generateId(),
       username: input.username,
       password: hashPassword(input.password),
+      role: 'user',
       createdAt: new Date(),
     });
     

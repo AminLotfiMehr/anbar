@@ -8,7 +8,7 @@ export const trpc = createTRPCReact<AppRouter>();
 
 const SETTINGS_KEY = 'app_settings';
 
-let cachedBaseUrl: string = 'http://185.120.251.246:3000';
+let cachedBaseUrl: string = 'http://192.168.1.151:3000';
 
 export async function getBaseUrl(): Promise<string> {
   try {

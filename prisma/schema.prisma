@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  role      UserRole @default(user)
+  createdAt DateTime @default(now())
+
+  transactions Transaction[] @relation("UserTransactions")
+}
+
+enum UserRole {
+  admin
+  user
+}
+
+model Warehouse {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  products     Product[]
+  transactions Transaction[]
+  auditSessions AuditSession[]
+  teams         Team[]
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  code         String
+  name         String
+  warehouseId  String
+  currentStock Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now())
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  transactions Transaction[]
+
+  @@index([code])
+}
+
+model Transaction {
+  id             String      @id @default(cuid())
+  productId      String
+  productCode    String
+  productName    String
+  warehouseId    String
+  type           TransactionType
+  quantity       Int
+  previousStock  Int
+  newStock       Int
+  userId         String
+  username       String
+  auditSessionId String?
+  countSessionId String?
+  isSynced       Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+
+  product   Product   @relation(fields: [productId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  user      User      @relation("UserTransactions", fields: [userId], references: [id])
+}
+
+enum TransactionType {
+  count
+  in
+  out
+}
+
+model AuditSession {
+  id           String     @id @default(cuid())
+  warehouseId  String
+  name         String
+  status       SessionStatus @default(active)
+  allowOutflow Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  completedAt  DateTime?
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  countSessions CountSession[]
+}
+
+enum SessionStatus {
+  active
+  completed
+}
+
+model CountSession {
+  id            String       @id @default(cuid())
+  auditSessionId String
+  teamId        String
+  name          String
+  status        SessionStatus @default(active)
+  createdAt     DateTime     @default(now())
+  completedAt   DateTime?
+
+  auditSession AuditSession @relation(fields: [auditSessionId], references: [id])
+  team         Team         @relation(fields: [teamId], references: [id])
+}
+
+model Team {
+  id           String   @id @default(cuid())
+  name         String
+  warehouseId  String
+  memberIds    String[]
+  createdAt    DateTime @default(now())
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  countSessions CountSession[]
+}
+
+model PendingTransaction {
+  id         String   @id @default(cuid())
+  data       Json
+  createdAt  DateTime @default(now())
+}

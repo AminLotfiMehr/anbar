@@ -6,6 +6,7 @@ import { generateId } from '../../../utils/auth';
 export const uploadExcelProcedure = protectedProcedure
   .input(
     z.object({
+      warehouseId: z.string(),
       products: z.array(
         z.object({
           code: z.string(),
@@ -15,17 +16,19 @@ export const uploadExcelProcedure = protectedProcedure
     })
   )
   .mutation(async ({ input }) => {
+    await db.products.clear(input.warehouseId);
+    
     const newProducts = input.products.map((p) => ({
       id: generateId(),
       code: p.code,
       name: p.name,
+      warehouseId: input.warehouseId,
       currentStock: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     }));
     
-    db.products.clear();
-    db.products.bulkCreate(newProducts);
+    await db.products.bulkCreate(newProducts);
     
     return {
       success: true,

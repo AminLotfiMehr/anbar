@@ -8,13 +8,33 @@ export const countInventoryProcedure = protectedProcedure
     z.object({
       code: z.string(),
       quantity: z.number().positive('تعداد باید مثبت باشد'),
+      warehouseId: z.string(),
+      auditSessionId: z.string().optional(),
+      countSessionId: z.string().optional(),
     })
   )
   .mutation(async ({ input, ctx }) => {
-    const product = await db.products.getByCode(input.code);
+    const product = await db.products.getByCode(input.code, input.warehouseId);
     
     if (!product) {
-      throw new Error('کالا با این کد پیدا نشد');
+      throw new Error('کالا با این کد در این انبار پیدا نشد');
+    }
+    
+    if (product.warehouseId !== input.warehouseId) {
+      throw new Error('کالا متعلق به انبار دیگری است');
+    }
+    
+    if (input.auditSessionId) {
+      const auditSession = await db.auditSessions.getById(input.auditSessionId);
+      if (!auditSession) {
+        throw new Error('جلسه انبارگردانی یافت نشد');
+      }
+      if (auditSession.status !== 'active') {
+        throw new Error('جلسه انبارگردانی فعال نیست');
+      }
+      if (auditSession.warehouseId !== input.warehouseId) {
+        throw new Error('جلسه انبارگردانی متعلق به انبار دیگری است');
+      }
     }
     
     const user = await db.users.getById(ctx.userId);
@@ -45,12 +65,16 @@ export const countInventoryProcedure = protectedProcedure
       productId: product.id,
       productCode: product.code,
       productName: product.name,
+      warehouseId: input.warehouseId,
       type: 'count',
       quantity: input.quantity,
       previousStock: 0,
       newStock: input.quantity,
       userId: user.id,
       username: user.username,
+      auditSessionId: input.auditSessionId,
+      countSessionId: input.countSessionId,
+      isSynced: true,
       createdAt: new Date(),
     });
     

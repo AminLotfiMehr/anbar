@@ -13,11 +13,15 @@ import {
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { trpc } from '@/lib/trpc';
+import { useWarehouse } from '@/contexts/WarehouseContext';
+import { useOfflineSync } from '@/contexts/OfflineSyncContext';
 import { Package, ScanBarcode, X } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
 export default function CountScreen() {
   const router = useRouter();
+  const { selectedWarehouseId, selectedWarehouse, activeAuditSession, selectedCountSessionId } = useWarehouse();
+  const { isOnline, addPendingTransaction } = useOfflineSync();
   const [code, setCode] = useState('');
   const [productName, setProductName] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -72,6 +76,11 @@ export default function CountScreen() {
   };
 
   const handleCountSubmit = async () => {
+    if (!selectedWarehouseId) {
+      Alert.alert('خطا', 'لطفاً ابتدا انبار را انتخاب کنید');
+      return;
+    }
+
     if (!productName) {
       Alert.alert('خطا', 'ابتدا کد کالا را وارد کنید');
       return;
@@ -85,7 +94,13 @@ export default function CountScreen() {
 
     setIsLoading(true);
     try {
-      const result = await countMutation.mutateAsync({ code, quantity: qty });
+      const result = await countMutation.mutateAsync({ 
+        code, 
+        quantity: qty,
+        warehouseId: selectedWarehouseId,
+        auditSessionId: activeAuditSession?.id,
+        countSessionId: selectedCountSessionId || undefined,
+      });
 
       if ('needsConfirmation' in result && result.needsConfirmation && 'message' in result) {
         Alert.alert('توجه', result.message, [
@@ -98,7 +113,13 @@ export default function CountScreen() {
             text: 'تایید',
             onPress: async () => {
               try {
-                await confirmMutation.mutateAsync({ code, quantity: qty });
+                await confirmMutation.mutateAsync({ 
+                  code, 
+                  quantity: qty,
+                  warehouseId: selectedWarehouseId,
+                  auditSessionId: activeAuditSession?.id,
+                  countSessionId: selectedCountSessionId || undefined,
+                });
                 Alert.alert('موفق', 'شمارش با موفقیت ثبت شد', [
                   {
                     text: 'بازگشت',
@@ -146,9 +167,22 @@ export default function CountScreen() {
     }
   };
 
+  if (!selectedWarehouse) {
+    return (
+      <>
+        <Stack.Screen options={{ title: 'شمارش کالا' }} />
+        <View style={styles.container}>
+          <Text style={styles.errorText}>لطفاً ابتدا انبار را انتخاب کنید</Text>
+        </View>
+      </>
+    );
+  }
+
   return (
     <>
-      <Stack.Screen options={{ title: 'شمارش کالا' }} />
+      <Stack.Screen options={{ 
+        title: `شمارش کالا - ${selectedWarehouse.name}`,
+      }} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
@@ -419,5 +453,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#ffffff',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
   },
 });

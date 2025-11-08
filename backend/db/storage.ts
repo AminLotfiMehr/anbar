@@ -1,134 +1,106 @@
-import { Database, User, Product, Transaction } from '../types/database';
-import { promises as fs } from 'fs';
-import { resolve } from 'path';
+import { PrismaClient, SessionStatus, TransactionType, UserRole } from '@prisma/client';
 
-const DB_FILE = resolve(process.cwd(), 'database.json');
-
-let database: Database = {
-  users: [],
-  products: [],
-  transactions: [],
-};
-
-let isInitialized = false;
-
-async function loadDatabase() {
-  if (isInitialized) return;
-  
-  try {
-    const data = await fs.readFile(DB_FILE, 'utf-8');
-    const parsed = JSON.parse(data);
-    database = {
-      users: parsed.users || [],
-      products: parsed.products || [],
-      transactions: parsed.transactions || [],
-    };
-    console.log('[DB] Loaded database:', {
-      users: database.users.length,
-      products: database.products.length,
-      transactions: database.transactions.length
-    });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      console.log('[DB] No stored database found, starting fresh');
-      await saveDatabase();
-    } else {
-      console.error('[DB] Error loading database:', error);
-    }
-  }
-  isInitialized = true;
-}
-
-async function saveDatabase() {
-  try {
-    await fs.writeFile(DB_FILE, JSON.stringify(database, null, 2), 'utf-8');
-    console.log('[DB] Database saved to', DB_FILE);
-  } catch (error) {
-    console.error('[DB] Error saving database:', error);
-  }
-}
+const prisma = new PrismaClient();
 
 export const db = {
-  init: loadDatabase,
+  init: async () => {
+    // Prisma does not require explicit init, but we can test connection
+    await prisma.$queryRaw`SELECT 1`;
+  },
   users: {
-    getAll: async () => {
-      await loadDatabase();
-      return database.users;
-    },
-    getById: async (id: string) => {
-      await loadDatabase();
-      return database.users.find(u => u.id === id);
-    },
-    getByUsername: async (username: string) => {
-      await loadDatabase();
-      return database.users.find(u => u.username === username);
-    },
-    create: async (user: User) => {
-      await loadDatabase();
-      database.users.push(user);
-      await saveDatabase();
-      console.log('[DB] User created:', user.username);
-      return user;
+    getAll: async () => prisma.user.findMany(),
+    getById: async (id: string) => prisma.user.findUnique({ where: { id } }),
+    getByUsername: async (username: string) => prisma.user.findUnique({ where: { username } }),
+    create: async (user: { id: string; username: string; password: string; role: 'admin' | 'user'; createdAt: Date; }) => {
+      const created = await prisma.user.create({
+        data: {
+          id: user.id,
+          username: user.username,
+          password: user.password,
+          role: user.role as UserRole,
+          createdAt: user.createdAt,
+        },
+      });
+      return created;
     },
   },
   products: {
-    getAll: async () => {
-      await loadDatabase();
-      return database.products;
-    },
-    getById: async (id: string) => {
-      await loadDatabase();
-      return database.products.find(p => p.id === id);
-    },
-    getByCode: async (code: string) => {
-      await loadDatabase();
-      return database.products.find(p => p.code === code);
-    },
-    create: async (product: Product) => {
-      await loadDatabase();
-      database.products.push(product);
-      await saveDatabase();
-      return product;
-    },
-    update: async (id: string, data: Partial<Product>) => {
-      await loadDatabase();
-      const index = database.products.findIndex(p => p.id === id);
-      if (index !== -1) {
-        database.products[index] = { ...database.products[index], ...data, updatedAt: new Date() };
-        await saveDatabase();
-        return database.products[index];
+    getAll: async () => prisma.product.findMany(),
+    getById: async (id: string) => prisma.product.findUnique({ where: { id } }),
+    getByCode: async (code: string, warehouseId?: string) => {
+      if (warehouseId) {
+        return prisma.product.findFirst({ where: { code, warehouseId } });
       }
-      return null;
+      return prisma.product.findFirst({ where: { code } });
     },
-    bulkCreate: async (products: Product[]) => {
-      await loadDatabase();
-      database.products = [...database.products, ...products];
-      await saveDatabase();
-      console.log('[DB] Bulk created products:', products.length);
+    getByWarehouse: async (warehouseId: string) => prisma.product.findMany({ where: { warehouseId } }),
+    create: async (product: any) => {
+      const created = await prisma.product.create({ data: product });
+      return created;
+    },
+    update: async (id: string, data: any) => {
+      const updated = await prisma.product.update({ where: { id }, data: { ...data, updatedAt: new Date() } });
+      return updated;
+    },
+    bulkCreate: async (products: any[]) => {
+      await prisma.product.createMany({ data: products, skipDuplicates: true });
       return products;
     },
-    clear: async () => {
-      await loadDatabase();
-      database.products = [];
-      await saveDatabase();
-      console.log('[DB] Products cleared');
+    clear: async (warehouseId?: string) => {
+      if (warehouseId) {
+        await prisma.product.deleteMany({ where: { warehouseId } });
+      } else {
+        await prisma.product.deleteMany();
+      }
     },
   },
   transactions: {
-    getAll: async () => {
-      await loadDatabase();
-      return database.transactions;
+    getAll: async () => prisma.transaction.findMany(),
+    getByProductId: async (productId: string) => prisma.transaction.findMany({ where: { productId } }),
+    getByWarehouse: async (warehouseId: string) => prisma.transaction.findMany({ where: { warehouseId } }),
+    create: async (transaction: any) => {
+      const created = await prisma.transaction.create({
+        data: {
+          ...transaction,
+          type: (transaction.type || 'count') as TransactionType,
+        },
+      });
+      return created;
     },
-    getByProductId: async (productId: string) => {
-      await loadDatabase();
-      return database.transactions.filter(t => t.productId === productId);
-    },
-    create: async (transaction: Transaction) => {
-      await loadDatabase();
-      database.transactions.push(transaction);
-      await saveDatabase();
-      console.log('[DB] Transaction created:', transaction.type, transaction.productCode);
-      return transaction;
-    },
+  },
+  warehouses: {
+    getAll: async () => prisma.warehouse.findMany(),
+    getById: async (id: string) => prisma.warehouse.findUnique({ where: { id } }),
+    getActive: async () => prisma.warehouse.findMany({ where: { isActive: true } }),
+    create: async (warehouse: any) => prisma.warehouse.create({ data: warehouse }),
+    update: async (id: string, data: any) => prisma.warehouse.update({ where: { id }, data }),
+  },
+  auditSessions: {
+    getAll: async () => prisma.auditSession.findMany(),
+    getById: async (id: string) => prisma.auditSession.findUnique({ where: { id } }),
+    getByWarehouse: async (warehouseId: string) => prisma.auditSession.findMany({ where: { warehouseId } }),
+    getActive: async (warehouseId: string) => prisma.auditSession.findFirst({ where: { warehouseId, status: SessionStatus.active } }),
+    create: async (session: any) => prisma.auditSession.create({ data: session }),
+    update: async (id: string, data: any) => prisma.auditSession.update({ where: { id }, data }),
+  },
+  countSessions: {
+    getAll: async () => prisma.countSession.findMany(),
+    getById: async (id: string) => prisma.countSession.findUnique({ where: { id } }),
+    getByAuditSession: async (auditSessionId: string) => prisma.countSession.findMany({ where: { auditSessionId } }),
+    create: async (session: any) => prisma.countSession.create({ data: session }),
+    update: async (id: string, data: any) => prisma.countSession.update({ where: { id }, data }),
+  },
+  teams: {
+    getAll: async () => prisma.team.findMany(),
+    getById: async (id: string) => prisma.team.findUnique({ where: { id } }),
+    getByWarehouse: async (warehouseId: string) => prisma.team.findMany({ where: { warehouseId } }),
+    create: async (team: any) => prisma.team.create({ data: team }),
+    update: async (id: string, data: any) => prisma.team.update({ where: { id }, data }),
+  },
+  pendingTransactions: {
+    getAll: async () => prisma.pendingTransaction.findMany(),
+    create: async (pending: any) => prisma.pendingTransaction.create({ data: { id: pending.id, data: pending.transaction, createdAt: pending.createdAt } }),
+    remove: async (id: string) => { await prisma.pendingTransaction.delete({ where: { id } }); },
+    clear: async () => { await prisma.pendingTransaction.deleteMany(); },
   },
 };

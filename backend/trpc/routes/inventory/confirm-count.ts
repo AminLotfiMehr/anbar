@@ -8,10 +8,13 @@ export const confirmCountProcedure = protectedProcedure
     z.object({
       code: z.string(),
       quantity: z.number().positive(),
+      warehouseId: z.string(),
+      auditSessionId: z.string().optional(),
+      countSessionId: z.string().optional(),
     })
   )
   .mutation(async ({ input, ctx }) => {
-    const product = await db.products.getByCode(input.code);
+    const product = await db.products.getByCode(input.code, input.warehouseId);
     
     if (!product) {
       throw new Error('کالا با این کد پیدا نشد');
@@ -34,12 +37,16 @@ export const confirmCountProcedure = protectedProcedure
       productId: product.id,
       productCode: product.code,
       productName: product.name,
+      warehouseId: input.warehouseId,
       type: 'count',
       quantity: input.quantity,
       previousStock,
       newStock,
       userId: user.id,
       username: user.username,
+      auditSessionId: input.auditSessionId,
+      countSessionId: input.countSessionId,
+      isSynced: true,
       createdAt: new Date(),
     });
     

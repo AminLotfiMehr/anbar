@@ -11,17 +11,26 @@ import {
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { trpc } from '@/lib/trpc';
+import { useWarehouse } from '@/contexts/WarehouseContext';
 import * as DocumentPicker from 'expo-document-picker';
 import { Upload } from 'lucide-react-native';
 
 export default function UploadScreen() {
   const router = useRouter();
+  const { selectedWarehouseId, selectedWarehouse } = useWarehouse();
   const [fileName, setFileName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
   const uploadMutation = trpc.products.uploadExcel.useMutation();
 
   const handleFilePick = async () => {
+    if (!selectedWarehouseId) {
+      Alert.alert('خطا', 'لطفاً ابتدا انبار را انتخاب کنید', [
+        { text: 'باشه', onPress: () => router.push('/select-warehouse') },
+      ]);
+      return;
+    }
+
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: [
@@ -67,7 +76,10 @@ export default function UploadScreen() {
           throw new Error('فایل خالی است یا فرمت آن صحیح نمی‌باشد');
         }
 
-        await uploadMutation.mutateAsync({ products });
+        await uploadMutation.mutateAsync({ 
+          warehouseId: selectedWarehouseId,
+          products 
+        });
 
         Alert.alert('موفق', `${products.length} کالا با موفقیت آپلود شد`, [
           {
@@ -90,9 +102,28 @@ export default function UploadScreen() {
     }
   };
 
+  if (!selectedWarehouse) {
+    return (
+      <>
+        <Stack.Screen options={{ title: 'آپلود فایل اکسل' }} />
+        <View style={styles.container}>
+          <View style={styles.content}>
+            <Text style={styles.errorText}>لطفاً ابتدا انبار را انتخاب کنید</Text>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={() => router.push('/select-warehouse')}
+            >
+              <Text style={styles.buttonText}>انتخاب انبار</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </>
+    );
+  }
+
   return (
     <>
-      <Stack.Screen options={{ title: 'آپلود فایل اکسل' }} />
+      <Stack.Screen options={{ title: `آپلود فایل اکسل - ${selectedWarehouse.name}` }} />
       <ScrollView style={styles.container}>
         <View style={styles.content}>
           <View style={styles.iconContainer}>
@@ -100,6 +131,7 @@ export default function UploadScreen() {
           </View>
 
           <Text style={styles.title}>آپلود لیست کالاها</Text>
+          <Text style={styles.warehouseInfo}>انبار: {selectedWarehouse.name}</Text>
           <Text style={styles.description}>
             فایل Excel (xls, xlsx) خود را انتخاب کنید. فایل باید شامل ستون‌های: ردیف، کد کالا، نام کالا باشد.
           </Text>
@@ -217,5 +249,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#ffffff',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  warehouseInfo: {
+    fontSize: 16,
+    color: '#FF9800',
+    textAlign: 'center',
+    marginBottom: 12,
+    fontWeight: '600' as const,
   },
 });

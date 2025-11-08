@@ -11,7 +11,7 @@ export default function IndexScreen() {
   useEffect(() => {
     if (!isLoading) {
       if (isAuthenticated) {
-        router.replace('/home');
+        router.replace('/mode-selection');
       } else {
         router.replace('/login');
       }
