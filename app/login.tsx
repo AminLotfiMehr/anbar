@@ -40,14 +40,14 @@ export default function LoginScreen() {
         console.log('[Login] Register successful:', result);
         await login(result.userId, result.username, result.userId);
         console.log('[Login] Auth state updated');
-        router.replace('/home');
+        router.replace('/home?mode=count');
       } else {
         console.log('[Login] Attempting login...');
         const result = await loginMutation.mutateAsync({ username, password });
         console.log('[Login] Login successful:', result);
         await login(result.userId, result.username, result.token);
         console.log('[Login] Auth state updated');
-        router.replace('/home');
+        router.replace('/home?mode=count');
       }
     } catch (error: unknown) {
       console.error('[Login] Error:', error);

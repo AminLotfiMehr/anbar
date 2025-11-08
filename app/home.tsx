@@ -1,17 +1,29 @@
+import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useRouter, Stack, Href, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWarehouse } from '@/contexts/WarehouseContext';
 import { useOfflineSync } from '@/contexts/OfflineSyncContext';
-import { Package, LogOut, Upload, FileSpreadsheet, FileText, ClipboardList, TrendingDown, Settings, Warehouse, Wifi, WifiOff, Users, UserCog, ArrowRight } from 'lucide-react-native';
+import { Package, LogOut, Upload, FileSpreadsheet, FileText, ClipboardList, TrendingDown, Warehouse, Wifi, WifiOff, Users, UserCog, ArrowRight } from 'lucide-react-native';
+
+type TabType = 'count' | 'audit';
 
 export default function HomeScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const mode = (params.mode as string) || 'count';
+  const initialMode = (params.mode as TabType) || 'count';
+  const [activeTab, setActiveTab] = useState<TabType>(initialMode);
   const { logout, username } = useAuth();
   const { selectedWarehouse, activeAuditSession } = useWarehouse();
   const { isOnline, pendingCount } = useOfflineSync();
+
+  // همگام‌سازی تب با پارامتر URL
+  useEffect(() => {
+    const mode = (params.mode as TabType) || 'count';
+    if (mode === 'count' || mode === 'audit') {
+      setActiveTab(mode);
+    }
+  }, [params.mode]);
 
   const handleLogout = async () => {
     await logout();
@@ -72,12 +84,6 @@ export default function HomeScreen() {
       color: '#00BCD4',
       onPress: () => router.push('/export' as Href),
     },
-    {
-      title: 'تنظیمات',
-      icon: Settings,
-      color: '#607D8B',
-      onPress: () => router.push('/settings' as Href),
-    },
   ];
 
   const auditMenuItems = [
@@ -117,29 +123,22 @@ export default function HomeScreen() {
       color: '#00BCD4',
       onPress: () => router.push('/export' as Href),
     },
-    {
-      title: 'تنظیمات',
-      icon: Settings,
-      color: '#607D8B',
-      onPress: () => router.push('/settings' as Href),
-    },
   ];
 
-  const menuItems = mode === 'audit' ? auditMenuItems : countMenuItems;
+  const menuItems = activeTab === 'audit' ? auditMenuItems : countMenuItems;
 
   const connectionIcon = isOnline ? Wifi : WifiOff;
   const ConnectionIcon = connectionIcon;
+
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+  };
 
   return (
     <>
       <Stack.Screen
         options={{
-          title: mode === 'audit' ? 'انبارگردانی' : 'شمارش کالا',
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.push('/mode-selection' as Href)} style={styles.backButton}>
-              <ArrowRight size={22} color="#007AFF" />
-            </TouchableOpacity>
-          ),
+          title: 'صفحه اصلی',
           headerRight: () => (
             <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
               <LogOut size={22} color="#FF5722" />
@@ -147,7 +146,30 @@ export default function HomeScreen() {
           ),
         }}
       />
-      <ScrollView style={styles.container}>
+      <View style={styles.container}>
+        {/* تب‌ها */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'count' && styles.tabActive]}
+            onPress={() => handleTabChange('count')}
+          >
+            <Package size={20} color={activeTab === 'count' ? '#4CAF50' : '#666'} />
+            <Text style={[styles.tabText, activeTab === 'count' && styles.tabTextActive]}>
+              شمارش
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'audit' && styles.tabActive]}
+            onPress={() => handleTabChange('audit')}
+          >
+            <Users size={20} color={activeTab === 'audit' ? '#9C27B0' : '#666'} />
+            <Text style={[styles.tabText, activeTab === 'audit' && styles.tabTextActive]}>
+              انبارگردانی
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View>
@@ -197,7 +219,8 @@ export default function HomeScreen() {
             );
           })}
         </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </>
   );
 }
@@ -206,6 +229,39 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8F9FA',
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabActive: {
+    borderBottomColor: '#007AFF',
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#666',
+  },
+  tabTextActive: {
+    color: '#007AFF',
+    fontWeight: '700' as const,
+  },
+  scrollView: {
+    flex: 1,
   },
   header: {
     padding: 24,

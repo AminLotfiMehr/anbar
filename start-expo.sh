@@ -14,4 +14,5 @@ export EXPO_NO_TELEMETRY=1
 bun install --frozen-lockfile || bun install
 
 # Start Expo with proper flags (CI=1 makes it non-interactive)
-exec bunx expo start --web --port 8082 --host lan
+# --clear flag clears the Metro bundler cache
+exec bunx expo start --web --port 8082 --host lan --clear
